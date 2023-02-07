@@ -1,0 +1,92 @@
+---
+- name: Setup Prometheus
+  hosts: prometheus_server
+  become: true
+  remote_user: admin
+
+  tasks:
+    - name: Add user
+      ansible.builtin.user:
+        name: "prometheus"
+        group: "prometheus"
+        create_home: false
+        system: true
+        state: present
+
+    - name: Create dir
+      ansible.builtin.file:
+        path: "/home/admin/prometheus"
+        state: directory
+        mode: '0755'
+
+    - name: Download and unpack
+      ansible.builtin.unarchive:
+        remote_src: true
+        src: "https://github.com/prometheus/prometheus/releases/download/v2.42.0/prometheus-2.42.0.linux-386.tar.gz"
+        dest: "/home/admin/prometheus"
+
+    - name: Create etc
+      ansible.builtin.file:
+        path: "/etc/prometheus"
+        state: directory
+        owner: "prometheus"
+        group: 'prometheus'
+        mode: '0755'
+
+    - name: Create var
+      ansible.builtin.file:
+        path: "/var/lib/prometheus"
+        state: directory
+        owner: "prometheus"
+        group: 'prometheus'
+        mode: '0755'
+
+    - name: Copy file prometheus
+      ansible.builtin.copy:
+        src: "/home/admin/prometheus/prometheus"
+        dest: "/usr/local/bin/"
+        owner: 'prometheus'
+        group: 'prometheus'
+
+    - name: Copy file promtool
+      ansible.builtin.copy:
+        src: "/home/admin/prometheus/promtool"
+        dest: "/usr/local/bin/"
+        owner: 'prometheus'
+        group: 'prometheus'
+
+    - name: Copy file promtool
+      ansible.builtin.copy:
+        src: "/home/admin/prometheus/prometheus.yml"
+        dest: "/etc/prometheus"
+        owner: 'prometheus'
+        group: 'prometheus'
+
+    - name: Copy dir console_libraries
+      ansible.builtin.copy:
+        src: "/home/admin/prometheus/console_libraries"
+        dest: "/etc/prometheus/"
+        owner: 'prometheus'
+        group: 'prometheus'
+
+    - name: Copy dir consoles
+      ansible.builtin.copy:
+        src: "/home/admin/prometheus/consoles"
+        dest: "/etc/prometheus/"
+        owner: 'prometheus'
+        group: 'prometheus'
+
+- name: Check prometheus
+  hosts: prometheus_server
+  become: true
+  remote_user: admin
+
+  tasks:
+    - name: Check installation 1
+      ansible.builtin.command: 
+        cmd: 'prometheus \
+          --config.file /etc/prometheus/prometheus.yml \
+          --storage.tsdb.path /usr/local/bin/prometheus \
+          --web.console.templates=/etc/prometheus/consoles \
+          --web.console.libraries=/etc/prometheus/console_libraries'
+        register: myoutput

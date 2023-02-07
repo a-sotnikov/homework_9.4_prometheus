@@ -1,0 +1,8 @@
+all:
+  children:
+    prometheus_server:
+      hosts:
+        51.250.19.7:
+    prometheus_node:
+      hosts:
+        51.250.28.124
