@@ -1,10 +1,18 @@
 ---
-- name: Setup Prometheus
-  hosts: prometheus_server
+- name: Add prometheus user
+  hosts: all
   become: true
   remote_user: admin
+  gather_facts: false
+  tags: 'Done'
 
   tasks:
+    - name: Add group
+      ansible.builtin.group:
+        name: "prometheus"
+        state: present
+        system: true
+
     - name: Add user
       ansible.builtin.user:
         name: "prometheus"
@@ -13,80 +21,149 @@
         system: true
         state: present
 
-    - name: Create dir
-      ansible.builtin.file:
-        path: "/home/admin/prometheus"
-        state: directory
-        mode: '0755'
+- name: Install Prometheus server
+  hosts: prometheus_server
+  become: true
+  remote_user: admin
+  gather_facts: false
+  tags: 'Done'
+
+  tasks:
 
     - name: Download and unpack
       ansible.builtin.unarchive:
         remote_src: true
         src: "https://github.com/prometheus/prometheus/releases/download/v2.42.0/prometheus-2.42.0.linux-386.tar.gz"
-        dest: "/home/admin/prometheus"
+        dest: "/home/admin/"
+        owner: 'admin'
+        group: 'admin'
 
-    - name: Create etc
+    - name: Check dirs
       ansible.builtin.file:
-        path: "/etc/prometheus"
+        path: '{{ item }}'
         state: directory
         owner: "prometheus"
         group: 'prometheus'
-        mode: '0755'
+        mode: '755'
+        recurse: true
+      loop:
+        - "/etc/prometheus"
+        - "/var/lib/prometheus"
 
-    - name: Create var
-      ansible.builtin.file:
-        path: "/var/lib/prometheus"
-        state: directory
-        owner: "prometheus"
-        group: 'prometheus'
-        mode: '0755'
-
-    - name: Copy file prometheus
+    - name: Copy files to bin
       ansible.builtin.copy:
-        src: "/home/admin/prometheus/prometheus"
+        remote_src: true
+        src: '{{ item }}'
         dest: "/usr/local/bin/"
         owner: 'prometheus'
         group: 'prometheus'
+        mode: '744'
+      loop:
+        - "/home/admin/prometheus-2.42.0.linux-386/prometheus"
+        - "/home/admin/prometheus-2.42.0.linux-386/promtool"
 
-    - name: Copy file promtool
+    - name: Copy prometheus config file
       ansible.builtin.copy:
-        src: "/home/admin/prometheus/promtool"
-        dest: "/usr/local/bin/"
-        owner: 'prometheus'
-        group: 'prometheus'
-
-    - name: Copy file promtool
-      ansible.builtin.copy:
-        src: "/home/admin/prometheus/prometheus.yml"
-        dest: "/etc/prometheus"
-        owner: 'prometheus'
-        group: 'prometheus'
-
-    - name: Copy dir console_libraries
-      ansible.builtin.copy:
-        src: "/home/admin/prometheus/console_libraries"
+        src: "./prometheus.yml"
         dest: "/etc/prometheus/"
         owner: 'prometheus'
         group: 'prometheus'
+        mode: '755'
 
-    - name: Copy dir consoles
+    - name: Copy dirs
       ansible.builtin.copy:
-        src: "/home/admin/prometheus/consoles"
+        remote_src: true
+        src: '{{ item }}'
         dest: "/etc/prometheus/"
         owner: 'prometheus'
         group: 'prometheus'
+        mode: '755'
+      loop:
+        - "/home/admin/prometheus-2.42.0.linux-386/console_libraries"
+        - "/home/admin/prometheus-2.42.0.linux-386/consoles"
 
-- name: Check prometheus
+- name: Setup prometheus
   hosts: prometheus_server
   become: true
   remote_user: admin
+  gather_facts: false
 
   tasks:
-    - name: Check installation 1
-      ansible.builtin.command: 
-        cmd: 'prometheus \
-          --config.file /etc/prometheus/prometheus.yml \
-          --storage.tsdb.path /usr/local/bin/prometheus \
-          --web.console.templates=/etc/prometheus/consoles \
-          --web.console.libraries=/etc/prometheus/console_libraries'
-        register: myoutput
+
+    - name: Copy service
+      ansible.builtin.copy:
+        src: './prometheus.service'
+        dest: '/etc/systemd/system/prometheus.service'
+        mode: '744'
+
+    - name: Enable and restart
+      ansible.builtin.systemd:
+        name: 'prometheus'
+        state: restarted
+        enabled: true
+
+    - name: Check Prometheus
+      ansible.builtin.uri:
+        url: 'http://localhost:9090'
+        status_code:
+          - '200'
+
+- name: Install NodeExplorer
+  hosts: all
+  become: true
+  remote_user: admin
+  gather_facts: false
+  tags: 'Done'
+
+  tasks:
+
+    - name: Download NodeExplorer
+      ansible.builtin.unarchive:
+        remote_src: true
+        src: 'https://github.com/prometheus/node_exporter/releases/download/v1.4.0/node_exporter-1.4.0.linux-amd64.tar.gz'
+        dest: '/home/admin/'
+
+    - name: 'Make dir'
+      ansible.builtin.file:
+        path: '/etc/prometheus/node_exporter'
+        state: directory
+        owner: prometheus
+        group: prometheus
+        mode: '755'
+
+    - name: 'Copy bin'
+      ansible.builtin.copy:
+        remote_src: true
+        src: '/home/admin/node_exporter-1.4.0.linux-amd64/'
+        dest: '/etc/prometheus/node_exporter/'
+        owner: prometheus
+        group: prometheus
+        mode: '755'
+
+- name: Setup node_exporter
+  hosts: all
+  become: true
+  remote_user: admin
+  gather_facts: false
+
+  tasks:
+
+    - name: Copy service
+      ansible.builtin.copy:
+        src: './node_exporter.service'
+        dest: '/etc/systemd/system/node_exporter.service'
+        owner: prometheus
+        group: prometheus
+        mode: '744'
+
+    - name: Enable and restart
+      ansible.builtin.systemd:
+        name: 'node_exporter'
+        state: restarted
+        enabled: true
+
+    - name: Check NodeExplorer
+      ansible.builtin.uri:
+        url: 'http://localhost:9100'
+        status_code:
+          - '200'

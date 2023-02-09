@@ -2,7 +2,7 @@ all:
   children:
     prometheus_server:
       hosts:
-        51.250.19.7:
+        158.160.9.122:
     prometheus_node:
       hosts:
-        51.250.28.124
+        158.160.17.95:

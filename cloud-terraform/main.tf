@@ -24,6 +24,7 @@ resource "yandex_compute_instance" "vm-1" {
   boot_disk {
     initialize_params {
       image_id = "fd8emvfmfoaordspe1jr"
+      size = 20
     }
   }
 
@@ -33,7 +34,7 @@ resource "yandex_compute_instance" "vm-1" {
   }
 
   metadata = {
-    "ssh-keys" = "ubuntu:${file("~/.ssh/id_rsa.pub")}"
+    user-data = "${file("./meta.txt")}"
   }
 
 }
@@ -51,6 +52,7 @@ resource "yandex_compute_instance" "vm-2" {
   boot_disk {
     initialize_params {
       image_id = "fd8emvfmfoaordspe1jr"
+      size = 20
     }
   }
 
@@ -60,7 +62,7 @@ resource "yandex_compute_instance" "vm-2" {
   }
 
   metadata = {
-    "ssh-keys" = "ubuntu:${file("~/.ssh/id_rsa.pub")}"
+    user-data = "${file("./meta.txt")}"
   }
 
 }
